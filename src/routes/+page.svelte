@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { personalInfo, skills, projects } from "$lib/portfolioData.js";
   import type { Project } from "$lib/portfolioData.js";
 
@@ -7,8 +8,23 @@
   let mouseY = $state(0);
   let contactForm = $state({ name: "", email: "", message: "" });
   let formSubmitted = $state(false);
+  let isMobile = $state(false);
 
-  // --- Preview modal / slider state ---
+  onMount(() => {
+    const mediaQuery = window.matchMedia("(max-width: 767px)");
+
+    const updateDevice = () => {
+      isMobile = mediaQuery.matches;
+    };
+
+    updateDevice();
+    mediaQuery.addEventListener("change", updateDevice);
+
+    return () => {
+      mediaQuery.removeEventListener("change", updateDevice);
+    };
+  });
+
   let previewProject: Project | null = $state(null);
   let currentSlide = $state(0);
   let isModalOpen = $derived(previewProject !== null);
@@ -28,16 +44,40 @@
     mouseY = event.clientY;
   }
 
-  function handleSubmit(event: SubmitEvent) {
+  async function handleSubmit(event: SubmitEvent) {
     event.preventDefault();
-    if (contactForm.name && contactForm.email && contactForm.message) {
+
+    if (!contactForm.name || !contactForm.email || !contactForm.message) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(contactForm),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error(result.message);
+        return;
+      }
+
       formSubmitted = true;
+
+      contactForm.name = "";
+      contactForm.email = "";
+      contactForm.message = "";
+
       setTimeout(() => {
-        contactForm.name = "";
-        contactForm.email = "";
-        contactForm.message = "";
         formSubmitted = false;
       }, 4000);
+    } catch (error) {
+      console.error("Failed to send message:", error);
     }
   }
 
@@ -77,63 +117,120 @@
 
 <svelte:window onmousemove={handleMouseMove} onkeydown={handleKeydown} />
 
-<div class="portfolio-container">
-  <div class="cursor-glow" style="left: {mouseX}px; top: {mouseY}px;"></div>
+<div class="max-w-275 mx-auto px-4 md:px-8 relative">
+  {#if mouseX !== 0 && mouseY !== 0 && !isMobile}
+    <div
+      class="fixed w-100 h-100 rounded-full pointer-events-none -translate-x-1/2 -translate-y-1/2 z-0 transition-[width,height] duration-200"
+      style="left: {mouseX}px; top: {mouseY}px; background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, rgba(0, 0, 0, 0) 70%);"
+    ></div>
+  {/if}
 
-  <nav class="navbar">
-    <div class="logo">&lt;{personalInfo.name.split(" ")[1]} /&gt;</div>
-    <div class="nav-links">
-      <a href="#about">About</a>
-      <a href="#skills">Skills</a>
-      <a href="#projects">Projects</a>
-      <a href="#contact" class="btn-nav">Contact</a>
+  <nav
+    class="md:flex hidden justify-between items-center py-8 sticky top-0 bg-[#0a0a0c]/80 backdrop-blur-[10px] z-10"
+  >
+    <div class="font-bold text-xl text-indigo-400 font-mono">
+      &lt;{personalInfo.name.split(" ")[1]} /&gt;
+    </div>
+    <div>
+      <a
+        href="#about"
+        class="text-gray-400 no-underline ml-6 transition-colors duration-200 hover:text-gray-100"
+        >About</a
+      >
+      <a
+        href="#skills"
+        class="text-gray-400 no-underline ml-6 transition-colors duration-200 hover:text-gray-100"
+        >Skills</a
+      >
+      <a
+        href="#projects"
+        class="text-gray-400 no-underline ml-6 transition-colors duration-200 hover:text-gray-100"
+        >Projects</a
+      >
+      <a
+        href="#contact"
+        class="text-gray-400 no-underline ml-6 transition-colors duration-200 hover:text-gray-100 border border-gray-700 px-4 py-2 rounded-[20px]"
+        >Contact</a
+      >
     </div>
   </nav>
 
-  <section id="about" class="hero">
-    <div class="badge">Ready for a New Project</div>
-    <h1>Hello, I'm <span class="highlight">{personalInfo.name}</span></h1>
-    <p class="subtitle">{personalInfo.role}</p>
-    <p class="bio">{personalInfo.bio}</p>
+  <section
+    id="about"
+    class="md:min-h-[80vh] min-h-dvh flex flex-col justify-center items-start py-16"
+  >
+    <div
+      class="bg-indigo-400/10 text-indigo-400 py-[0.4rem] px-4 rounded-[20px] text-sm border border-indigo-400/20 mb-6"
+    >
+      Ready for a New Project
+    </div>
+    <h1 class="text-[2.5rem] md:text-[3.5rem] leading-[1.1] m-0 mb-4">
+      Hello, I'm <span
+        class="bg-linear-to-br from-indigo-400 to-purple-400 bg-clip-text text-transparent"
+        >{personalInfo.name}</span
+      >
+    </h1>
+    <p class="text-2xl text-gray-400 m-0 mb-4">{personalInfo.role}</p>
+    <p class="max-w-150 text-gray-500 text-[1.1rem] leading-relaxed mb-8">
+      {personalInfo.bio}
+    </p>
 
-    <div class="cta-group">
-      <a href="#projects" class="btn-primary">View Portfolio</a>
-      <a href="#contact" class="btn-secondary">Contact Me</a>
+    <div class="flex gap-4 mb-10">
+      <a
+        href="#projects"
+        class="bg-indigo-600 text-white py-[0.8rem] px-[1.8rem] rounded-lg no-underline font-semibold border-none cursor-pointer transition-all duration-200 hover:bg-indigo-700 hover:-translate-y-0.5"
+        >View Portfolio</a
+      >
+      <a
+        href="#contact"
+        class="bg-transparent text-gray-100 py-[0.8rem] px-[1.8rem] rounded-lg no-underline border border-gray-700 transition-colors duration-200 hover:bg-gray-800"
+        >Contact Me</a
+      >
     </div>
 
-    <div class="social-links">
+    <div>
       {#each personalInfo.socials as social}
-        <a href={social.url} target="_blank" rel="noreferrer"
+        <a
+          href={social.url}
+          target="_blank"
+          rel="noreferrer"
+          class="text-gray-400 no-underline mr-6 text-[0.9rem]"
           >{social.name} ↗</a
         >
       {/each}
     </div>
   </section>
 
-  <section id="skills" class="section">
-    <h2>Skills & Technologies</h2>
-    <div class="skills-grid">
+  <section id="skills" class="py-20">
+    <h2 class="text-[2rem] mb-8 relative">Skills &amp; Technologies</h2>
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-6">
       {#each skills as skill}
-        <div class="skill-card">
-          <div class="skill-info">
-            <span class="skill-name">{skill.name}</span>
-            <span class="skill-category">{skill.category}</span>
+        <div class="bg-gray-900 p-5 rounded-xl border border-gray-800">
+          <div class="flex justify-between mb-3">
+            <span>{skill.name}</span>
+            <span class="text-[0.8rem] text-gray-500">{skill.category}</span>
           </div>
-          <div class="progress-bar">
-            <div class="progress" style="width: {skill.level}%;"></div>
+          <div class="h-1.5 bg-gray-800 rounded-[3px] overflow-hidden">
+            <div
+              class="h-full bg-linear-to-r from-indigo-600 to-purple-400 transition-[width] duration-1000 ease-out"
+              style="width: {skill.level}%;"
+            ></div>
           </div>
         </div>
       {/each}
     </div>
   </section>
 
-  <section id="projects" class="section">
-    <h2>Featured Projects</h2>
+  <section id="projects" class="py-20">
+    <h2 class="text-[2rem] mb-8 relative">Featured Projects</h2>
 
-    <div class="tabs">
+    <div class="flex gap-2 mb-8">
       {#each categories as category}
         <button
-          class="tab-btn {activeTab === category ? 'active' : ''}"
+          class="py-2 px-4 rounded-md cursor-pointer transition-all duration-200 {activeTab ===
+          category
+            ? 'bg-indigo-600 text-white border border-indigo-600'
+            : 'bg-gray-900 border border-gray-800 text-gray-400 hover:bg-indigo-600 hover:text-white hover:border-indigo-600'}"
           onclick={() => (activeTab = category)}
         >
           {category}
@@ -141,31 +238,49 @@
       {/each}
     </div>
 
-    <div class="projects-grid">
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-8">
       {#each filteredProjects as project (project.id)}
-        <div class="project-card">
-          <div class="card-header">
-            <span class="project-cat">{project.category}</span>
+        <div
+          class="bg-gray-900 border border-gray-800 p-[1.8rem] rounded-xl flex flex-col justify-between transition-all duration-300 hover:-translate-y-1.25 hover:border-indigo-600"
+        >
+          <div>
+            <span class="text-xs text-indigo-400 uppercase tracking-[1px]"
+              >{project.category}</span
+            >
             <h3>{project.title}</h3>
           </div>
           <p>{project.description}</p>
-          <div class="tech-stack">
+          <div class="flex flex-wrap gap-2 my-6">
             {#each project.tech as tech}
-              <span class="tech-tag">{tech}</span>
+              <span
+                class="bg-gray-800 text-gray-300 text-xs py-1 px-[0.6rem] rounded"
+                >{tech}</span
+              >
             {/each}
           </div>
-          <div class="card-links">
+          <div class="flex gap-4">
             {#if project.previewAssets && project.previewAssets.length > 0}
-              <button class="link-btn" onclick={() => openPreview(project)}>
+              <button
+                class="text-gray-100 no-underline text-[0.9rem] font-medium bg-transparent border-none p-0 cursor-pointer font-[inherit] hover:text-indigo-400"
+                onclick={() => openPreview(project)}
+              >
                 Preview ↗
               </button>
             {:else if project.link !== "#"}
-              <a href={project.link} target="_blank" rel="noreferrer"
+              <a
+                href={project.link}
+                target="_blank"
+                rel="noreferrer"
+                class="text-gray-100 no-underline text-[0.9rem] font-medium hover:text-indigo-400"
                 >Preview ↗</a
               >
             {/if}
             {#if project.github !== "#"}
-              <a href={project.github} target="_blank" rel="noreferrer"
+              <a
+                href={project.github}
+                target="_blank"
+                rel="noreferrer"
+                class="text-gray-100 no-underline text-[0.9rem] font-medium hover:text-indigo-400"
                 >GitHub ↗</a
               >
             {/if}
@@ -175,46 +290,62 @@
     </div>
   </section>
 
-  <section id="contact" class="section">
-    <h2>Let's Work Together</h2>
-    <div class="contact-box">
+  <section id="contact" class="py-20">
+    <h2 class="text-[2rem] mb-8 relative">Let's Work Together</h2>
+    <div class="bg-gray-900 border border-gray-800 p-10 rounded-2xl max-w-150">
       {#if formSubmitted}
-        <div class="success-message">
+        <div
+          class="bg-emerald-500/10 text-emerald-500 p-4 rounded-lg border border-emerald-500/20 text-center"
+        >
           ✅ Pesan Anda berhasil terkirim! Saya akan segera menghubungi Anda.
         </div>
       {:else}
         <form onsubmit={handleSubmit}>
-          <div class="form-group">
-            <label for="name">Name</label>
+          <div class="flex flex-col mb-5">
+            <label for="name" class="mb-2 text-gray-400 text-[0.9rem]"
+              >Name</label
+            >
             <input
               type="text"
               id="name"
               bind:value={contactForm.name}
               required
               placeholder="Your Name"
+              class="bg-[#0a0a0c] border border-gray-700 text-white p-3 rounded-md font-[inherit] focus:outline-none focus:border-indigo-400"
+              autocomplete="off"
             />
           </div>
-          <div class="form-group">
-            <label for="email">Email</label>
+          <div class="flex flex-col mb-5">
+            <label for="email" class="mb-2 text-gray-400 text-[0.9rem]"
+              >Email</label
+            >
             <input
               type="email"
               id="email"
               bind:value={contactForm.email}
               required
               placeholder="email@example.com"
+              class="bg-[#0a0a0c] border border-gray-700 text-white p-3 rounded-md font-[inherit] focus:outline-none focus:border-indigo-400"
+              autocomplete="off"
             />
           </div>
-          <div class="form-group">
-            <label for="message">Message</label>
+          <div class="flex flex-col mb-5">
+            <label for="message" class="mb-2 text-gray-400 text-[0.9rem]"
+              >Message</label
+            >
             <textarea
               id="message"
               bind:value={contactForm.message}
               rows="4"
               required
               placeholder="Write your message here..."
+              class="bg-[#0a0a0c] border border-gray-700 text-white p-3 rounded-md font-[inherit] focus:outline-none focus:border-indigo-400"
+              autocomplete="off"
             ></textarea>
           </div>
-          <button type="submit" class="btn-primary full-width"
+          <button
+            type="submit"
+            class="w-full bg-indigo-600 text-white py-[0.8rem] px-[1.8rem] rounded-lg font-semibold border-none cursor-pointer transition-all duration-200 hover:bg-indigo-700 hover:-translate-y-0.5"
             >Send Message</button
           >
         </form>
@@ -222,22 +353,26 @@
     </div>
   </section>
 
-  <footer>
+  <footer
+    class="text-center py-12 text-gray-600 border-t border-gray-800 mt-16"
+  >
     <p>© {new Date().getFullYear()} {personalInfo.name}</p>
   </footer>
 </div>
 
 {#if isModalOpen && previewProject}
   <div
-    class="modal-backdrop"
+    class="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center z-100 p-6 animate-[fadeIn_0.2s_ease-out]"
     role="button"
     tabindex="0"
     onclick={closePreview}
-    onkeydown={(e) => { if (e.key === "Enter" || e.key === " ") closePreview(); }}
+    onkeydown={(e) => {
+      if (e.key === "Enter" || e.key === " ") closePreview();
+    }}
     aria-label="Close preview"
   >
     <div
-      class="modal-box"
+      class="bg-gray-900 border border-gray-800 rounded-2xl max-w-175 w-full p-6 relative animate-[scaleIn_0.25s_ease-out]"
       role="dialog"
       aria-modal="true"
       aria-label={previewProject.title}
@@ -245,36 +380,46 @@
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.stopPropagation()}
     >
-      <button class="modal-close" onclick={closePreview} aria-label="Close preview">✕</button>
+      <button
+        class="absolute top-4 right-4 bg-gray-800 text-gray-100 border-none w-8 h-8 rounded-full cursor-pointer text-base flex items-center justify-center transition-colors duration-200 z-2 hover:bg-gray-700"
+        onclick={closePreview}
+        aria-label="Close preview">✕</button
+      >
 
-      <div class="modal-header">
-        <span class="project-cat">{previewProject.category}</span>
-        <h3>{previewProject.title}</h3>
+      <div class="mb-4 pr-10">
+        <span class="text-xs text-indigo-400 uppercase tracking-[1px]"
+          >{previewProject.category}</span
+        >
+        <h3 class="mt-1 mb-0 text-[1.4rem]">{previewProject.title}</h3>
       </div>
 
-      <div class="slider">
+      <div
+        class="relative overflow-hidden rounded-xl bg-[#0a0a0c] aspect-16/10"
+      >
         <div
-          class="slider-track"
+          class="flex h-full transition-transform duration-350"
           style="transform: translateX(-{currentSlide * 100}%);"
         >
           {#each previewProject.previewAssets as asset, i}
-            <div class="slide">
-              <img src={asset} alt="{previewProject.title} preview {i + 1}" />
+            <div class="shrink-0 basis-full h-full">
+              <img
+                src={asset}
+                alt="{previewProject.title} preview {i + 1}"
+                class="w-full h-full object-cover block"
+              />
             </div>
           {/each}
         </div>
-
-        {#if previewProject.previewAssets.length > 1}
-          <button class="slider-nav prev" onclick={prevSlide} aria-label="Previous image">‹</button>
-          <button class="slider-nav next" onclick={nextSlide} aria-label="Next image">›</button>
-        {/if}
       </div>
 
       {#if previewProject.previewAssets.length > 1}
-        <div class="slider-dots">
+        <div class="flex justify-center gap-2 mt-4">
           {#each previewProject.previewAssets as _, i}
             <button
-              class="dot {currentSlide === i ? 'active' : ''}"
+              class="w-2 h-2 rounded-full border-none cursor-pointer p-0 transition-all duration-200 {currentSlide ===
+              i
+                ? 'bg-indigo-400 scale-[1.3]'
+                : 'bg-gray-700'}"
               onclick={() => goToSlide(i)}
               aria-label="Go to image {i + 1}"
             ></button>
@@ -284,538 +429,3 @@
     </div>
   </div>
 {/if}
-
-<style>
-  :global(html) {
-    scroll-behavior: smooth;
-    font-family:
-      "Inter",
-      -apple-system,
-      BlinkMacSystemFont,
-      sans-serif;
-    background-color: #0a0a0c;
-    color: #f3f4f6;
-  }
-
-  :global(body) {
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-  }
-
-  .portfolio-container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 2rem;
-    position: relative;
-  }
-
-  .cursor-glow {
-    position: fixed;
-    width: 400px;
-    height: 400px;
-    background: radial-gradient(
-      circle,
-      rgba(99, 102, 241, 0.15) 0%,
-      rgba(0, 0, 0, 0) 70%
-    );
-    border-radius: 50%;
-    pointer-events: none;
-    transform: translate(-50%, -50%);
-    z-index: 0;
-    transition:
-      width 0.2s,
-      height 0.2s;
-  }
-
-  .navbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 2rem 0;
-    position: sticky;
-    top: 0;
-    background: rgba(10, 10, 12, 0.8);
-    backdrop-filter: blur(10px);
-    z-index: 10;
-  }
-
-  .logo {
-    font-weight: 700;
-    font-size: 1.25rem;
-    color: #818cf8;
-    font-family: monospace;
-  }
-
-  .nav-links a {
-    color: #9ca3af;
-    text-decoration: none;
-    margin-left: 1.5rem;
-    transition: color 0.2s;
-  }
-
-  .nav-links a:hover {
-    color: #f3f4f6;
-  }
-
-  .btn-nav {
-    border: 1px solid #374151;
-    padding: 0.5rem 1rem;
-    border-radius: 20px;
-  }
-
-  .hero {
-    min-height: 80vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: flex-start;
-    padding: 4rem 0;
-  }
-
-  .badge {
-    background: rgba(129, 140, 248, 0.1);
-    color: #818cf8;
-    padding: 0.4rem 1rem;
-    border-radius: 20px;
-    font-size: 0.875rem;
-    border: 1px solid rgba(129, 140, 248, 0.2);
-    margin-bottom: 1.5rem;
-  }
-
-  h1 {
-    font-size: 3.5rem;
-    line-height: 1.1;
-    margin: 0 0 1rem 0;
-  }
-
-  .highlight {
-    background: linear-gradient(135deg, #818cf8 0%, #c084fc 100%);
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .subtitle {
-    font-size: 1.5rem;
-    color: #9ca3af;
-    margin: 0 0 1rem 0;
-  }
-
-  .bio {
-    max-width: 600px;
-    color: #6b7280;
-    font-size: 1.1rem;
-    line-height: 1.6;
-    margin-bottom: 2rem;
-  }
-
-  .cta-group {
-    display: flex;
-    gap: 1rem;
-    margin-bottom: 2.5rem;
-  }
-
-  .btn-primary {
-    background: #4f46e5;
-    color: white;
-    padding: 0.8rem 1.8rem;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: 600;
-    border: none;
-    cursor: pointer;
-    transition:
-      transform 0.2s,
-      background 0.2s;
-  }
-
-  .btn-primary:hover {
-    background: #4338ca;
-    transform: translateY(-2px);
-  }
-
-  .btn-secondary {
-    background: transparent;
-    color: #f3f4f6;
-    padding: 0.8rem 1.8rem;
-    border-radius: 8px;
-    text-decoration: none;
-    border: 1px solid #374151;
-    transition: background 0.2s;
-  }
-
-  .btn-secondary:hover {
-    background: #1f2937;
-  }
-
-  .social-links a {
-    color: #9ca3af;
-    text-decoration: none;
-    margin-right: 1.5rem;
-    font-size: 0.9rem;
-  }
-
-  .section {
-    padding: 5rem 0;
-  }
-
-  h2 {
-    font-size: 2rem;
-    margin-bottom: 2rem;
-    position: relative;
-  }
-
-  .skills-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 1.5rem;
-  }
-
-  .skill-card {
-    background: #111827;
-    padding: 1.25rem;
-    border-radius: 12px;
-    border: 1px solid #1f2937;
-  }
-
-  .skill-info {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.75rem;
-  }
-
-  .skill-category {
-    font-size: 0.8rem;
-    color: #6b7280;
-  }
-
-  .progress-bar {
-    height: 6px;
-    background: #1f2937;
-    border-radius: 3px;
-    overflow: hidden;
-  }
-
-  .progress {
-    height: 100%;
-    background: linear-gradient(90deg, #4f46e5, #c084fc);
-    transition: width 1s ease-out;
-  }
-
-  /* Projects & Tabs */
-  .tabs {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 2rem;
-  }
-
-  .tab-btn {
-    background: #111827;
-    border: 1px solid #1f2937;
-    color: #9ca3af;
-    padding: 0.5rem 1rem;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .tab-btn.active,
-  .tab-btn:hover {
-    background: #4f46e5;
-    color: white;
-    border-color: #4f46e5;
-  }
-
-  .projects-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-  }
-
-  .project-card {
-    background: #111827;
-    border: 1px solid #1f2937;
-    padding: 1.8rem;
-    border-radius: 12px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    transition:
-      transform 0.3s,
-      border-color 0.3s;
-  }
-
-  .project-card:hover {
-    transform: translateY(-5px);
-    border-color: #4f46e5;
-  }
-
-  .project-cat {
-    font-size: 0.75rem;
-    color: #818cf8;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-
-  .tech-stack {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin: 1.5rem 0;
-  }
-
-  .tech-tag {
-    background: #1f2937;
-    color: #d1d5db;
-    font-size: 0.75rem;
-    padding: 0.25rem 0.6rem;
-    border-radius: 4px;
-  }
-
-  .card-links {
-    display: flex;
-    gap: 1rem;
-  }
-
-  .card-links a,
-  .link-btn {
-    color: #f3f4f6;
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 500;
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    font-family: inherit;
-  }
-
-  .link-btn:hover,
-  .card-links a:hover {
-    color: #818cf8;
-  }
-
-  /* Contact Form */
-  .contact-box {
-    background: #111827;
-    border: 1px solid #1f2937;
-    padding: 2.5rem;
-    border-radius: 16px;
-    max-width: 600px;
-  }
-
-  .form-group {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 1.25rem;
-  }
-
-  label {
-    margin-bottom: 0.5rem;
-    color: #9ca3af;
-    font-size: 0.9rem;
-  }
-
-  input,
-  textarea {
-    background: #0a0a0c;
-    border: 1px solid #374151;
-    color: white;
-    padding: 0.75rem;
-    border-radius: 6px;
-    font-family: inherit;
-  }
-
-  input:focus,
-  textarea:focus {
-    outline: none;
-    border-color: #818cf8;
-  }
-
-  .full-width {
-    width: 100%;
-  }
-
-  .success-message {
-    background: rgba(16, 185, 129, 0.1);
-    color: #10b981;
-    padding: 1rem;
-    border-radius: 8px;
-    border: 1px solid rgba(16, 185, 129, 0.2);
-    text-align: center;
-  }
-
-  footer {
-    text-align: center;
-    padding: 3rem 0;
-    color: #4b5563;
-    border-top: 1px solid #1f2937;
-    margin-top: 4rem;
-  }
-
-  /* --- Preview Modal / Slider --- */
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    padding: 1.5rem;
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  .modal-box {
-    background: #111827;
-    border: 1px solid #1f2937;
-    border-radius: 16px;
-    max-width: 700px;
-    width: 100%;
-    padding: 1.5rem;
-    position: relative;
-    animation: scaleIn 0.25s ease-out;
-  }
-
-  .modal-close {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    background: #1f2937;
-    color: #f3f4f6;
-    border: none;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s;
-    z-index: 2;
-  }
-
-  .modal-close:hover {
-    background: #374151;
-  }
-
-  .modal-header {
-    margin-bottom: 1rem;
-    padding-right: 2.5rem;
-  }
-
-  .modal-header h3 {
-    margin: 0.25rem 0 0 0;
-    font-size: 1.4rem;
-  }
-
-  .slider {
-    position: relative;
-    overflow: hidden;
-    border-radius: 12px;
-    background: #0a0a0c;
-    aspect-ratio: 16 / 10;
-  }
-
-  .slider-track {
-    display: flex;
-    height: 100%;
-    transition: transform 0.35s ease;
-  }
-
-  .slide {
-    flex: 0 0 100%;
-    height: 100%;
-  }
-
-  .slide img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-  }
-
-  .slider-nav {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    background: rgba(10, 10, 12, 0.6);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1.3rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.2s;
-  }
-
-  .slider-nav:hover {
-    background: #4f46e5;
-  }
-
-  .slider-nav.prev {
-    left: 0.75rem;
-  }
-
-  .slider-nav.next {
-    right: 0.75rem;
-  }
-
-  .slider-dots {
-    display: flex;
-    justify-content: center;
-    gap: 0.5rem;
-    margin-top: 1rem;
-  }
-
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #374151;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-    transition: background 0.2s, transform 0.2s;
-  }
-
-  .dot.active {
-    background: #818cf8;
-    transform: scale(1.3);
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  @keyframes scaleIn {
-    from {
-      opacity: 0;
-      transform: scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: scale(1);
-    }
-  }
-
-  @media (max-width: 768px) {
-    h1 {
-      font-size: 2.5rem;
-    }
-    .portfolio-container {
-      padding: 0 1rem;
-    }
-  }
-</style>
