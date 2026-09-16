@@ -112,7 +112,7 @@ export const projects: Project[] = [
       "Next Js",
       "Postgresql"
     ],
-    link: "#",
+    link: "https://simrs-medivora.buatin-website.com",
     github: "#",
     previewAssets: ["/projects/simrs-medivora/1.png", "/projects/simrs-medivora/2.png"],
   },
