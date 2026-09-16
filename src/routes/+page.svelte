@@ -266,13 +266,14 @@
               >
                 Preview ↗
               </button>
-            {:else if project.link !== "#"}
+            {/if}
+            {#if project.link !== "#"}
               <a
                 href={project.link}
                 target="_blank"
                 rel="noreferrer"
                 class="text-gray-100 no-underline text-[0.9rem] font-medium hover:text-indigo-400"
-                >Preview ↗</a
+                >Visit Site ↗</a
               >
             {/if}
             {#if project.github !== "#"}
